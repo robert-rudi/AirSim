@@ -178,7 +178,7 @@ void ACarPawn::NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other,
         HitNormal, NormalImpulse, Hit);
 }
 
-void ACarPawn::initializeForBeginPlay(bool enable_rpc, const std::string& api_server_address, bool engine_sound, int remote_control_id)
+void ACarPawn::initializeForBeginPlay(bool enable_rpc, const std::string& api_server_address, std::uint16_t api_server_port, bool engine_sound, int remote_control_id)
 {
     remote_control_id_ = remote_control_id;
 
@@ -209,7 +209,7 @@ void ACarPawn::initializeForBeginPlay(bool enable_rpc, const std::string& api_se
     wrapper_->initialize(this, cameras);
     wrapper_->setKinematics(&kinematics_);
 
-    startApiServer(enable_rpc, api_server_address);
+	startApiServer(enable_rpc, api_server_address, api_server_port);
 
     //TODO: should do reset() here?
     keyboard_controls_ = joystick_controls_ = CarPawnApi::CarControls();
@@ -236,7 +236,7 @@ void ACarPawn::reset(bool disable_api_control)
         api_->enableApiControl(false);
 }
 
-void ACarPawn::startApiServer(bool enable_rpc, const std::string& api_server_address)
+void ACarPawn::startApiServer(bool enable_rpc, const std::string& api_server_address, std::uint16_t api_server_port)
 {
     if (enable_rpc) {
         api_.reset(new CarPawnApi(getVehiclePawnWrapper(), this->GetVehicleMovement()));
@@ -245,12 +245,12 @@ void ACarPawn::startApiServer(bool enable_rpc, const std::string& api_server_add
 #ifdef AIRLIB_NO_RPC
         rpclib_server_.reset(new msr::airlib::DebugApiServer());
 #else
-        rpclib_server_.reset(new msr::airlib::CarRpcLibServer(api_.get(), api_server_address));
+		rpclib_server_.reset(new msr::airlib::CarRpcLibServer(api_.get(), api_server_address, api_server_port));
 #endif
 
         rpclib_server_->start();
         UAirBlueprintLib::LogMessageString("API server started at ",
-            api_server_address == "" ? "(default)" : api_server_address.c_str(), LogDebugLevel::Informational);
+			std::string(api_server_address == "" ? "(localhost)" : api_server_address.c_str()) + ':' + std::to_string(api_server_port), LogDebugLevel::Informational);
     }
     else
         UAirBlueprintLib::LogMessageString("API server is disabled in settings", "", LogDebugLevel::Informational);
@@ -477,11 +477,11 @@ void ACarPawn::BeginPlay()
 void ACarPawn::UpdateHUDStrings()
 {
     float vel = FMath::Abs(GetVehicleMovement()->GetForwardSpeed() / 100); //cm/s -> m/s
-    float vel_rounded = FMath::FloorToInt(vel * 10) / 10.0f;
+    float vel_rounded = FMath::FloorToInt((vel*3.6f) * 10) / 10.0f;
     int32 Gear = GetVehicleMovement()->GetCurrentGear();
 
     // Using FText because this is display text that should be localizable
-    SpeedDisplayString = FText::Format(LOCTEXT("SpeedFormat", "{0} m/s"), FText::AsNumber(vel_rounded));
+    SpeedDisplayString = FText::Format(LOCTEXT("SpeedFormat", "{0} km/h"), FText::AsNumber(vel_rounded));
 
 
     if (GetVehicleMovement()->GetCurrentGear() < 0)

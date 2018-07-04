@@ -22,7 +22,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ImageProcessor.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="TcpStatechartClient.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AirLib\AirLib.vcxproj">
@@ -31,6 +33,14 @@
     <ProjectReference Include="..\MavLinkCom\MavLinkCom.vcxproj">
       <Project>{8510c7a4-bf63-41d2-94f6-d8731d137a5a}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ImageProcessor.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="TcpStatechartClient.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="rgb_values.txt" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{4358ED90-CCA1-47A8-8D68-A260F212931E}</ProjectGuid>

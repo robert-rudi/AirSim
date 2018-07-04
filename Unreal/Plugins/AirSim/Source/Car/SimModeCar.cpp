@@ -3,6 +3,9 @@
 #include "AirBlueprintLib.h"
 #include "common/AirSimSettings.hpp"
 #include "Car/CarPawn.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+
 
 ASimModeCar::ASimModeCar()
 {
@@ -16,7 +19,7 @@ ASimModeCar::ASimModeCar()
     static ConstructorHelpers::FClassFinder<ACarPawn> vehicle_pawn_class(TEXT("Blueprint'/AirSim/VehicleAdv/SUV/SuvCarPawn'"));
     if (vehicle_pawn_class.Succeeded()) {
         vehicle_pawn_class_ = vehicle_pawn_class.Class;
-        follow_distance_ = -800;
+        follow_distance_ = -4000;
     }
     else {
         vehicle_pawn_class_ = ACarPawn::StaticClass();
@@ -67,6 +70,7 @@ void ASimModeCar::setupVehiclesAndCamera(std::vector<VehiclePtr>& vehicles)
         UAirBlueprintLib::FindAllActor<ACameraDirector>(this, camera_dirs);
         if (camera_dirs.Num() == 0) {
             //create director
+			
             FActorSpawnParameters camera_spawn_params;
             camera_spawn_params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
             CameraDirector = this->GetWorld()->SpawnActor<ACameraDirector>(camera_director_class_, camera_transform, camera_spawn_params);
@@ -86,44 +90,65 @@ void ASimModeCar::setupVehiclesAndCamera(std::vector<VehiclePtr>& vehicles)
     }
 
     //find all vehicle pawns
-    {
-        TArray<AActor*> pawns;
-        UAirBlueprintLib::FindAllActor<TVehiclePawn>(this, pawns);
+	{
+		TArray<AActor*> pawns;
+		UAirBlueprintLib::FindAllActor<TVehiclePawn>(this, pawns);
 
-        //if no vehicle pawns exists in environment
-        if (pawns.Num() == 0) {
-            //create vehicle pawn
-            FActorSpawnParameters pawn_spawn_params;
-            pawn_spawn_params.SpawnCollisionHandlingOverride =
-                ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-            TVehiclePawn* spawned_pawn = this->GetWorld()->SpawnActor<TVehiclePawn>(
-                vehicle_pawn_class_, actor_transform, pawn_spawn_params);
+		//if no vehicle pawns exists in environment
+		if (pawns.Num() == 0) {
+			//create vehicle pawn
+			FActorSpawnParameters pawn_spawn_params;
+			pawn_spawn_params.SpawnCollisionHandlingOverride =
+				ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+			TVehiclePawn* spawned_pawn = dynamic_cast<TVehiclePawn*>(this->GetWorld()->SpawnActor<TVehiclePawn>(
+				vehicle_pawn_class_, actor_transform, pawn_spawn_params));
 
-            spawned_actors_.Add(spawned_pawn);
-            pawns.Add(spawned_pawn);
-        }
+			spawned_actors_.Add(spawned_pawn);
+			pawns.Add(spawned_pawn);
+		}
 
-        //set up vehicle pawns
-        for (AActor* pawn : pawns)
-        {
-            //initialize each vehicle pawn we found
-            TVehiclePawn* vehicle_pawn = static_cast<TVehiclePawn*>(pawn);
-            vehicles.push_back(vehicle_pawn);
+		//set up vehicle pawns
 
-            //chose first pawn as FPV if none is designated as FPV
-            VehiclePawnWrapper* wrapper = vehicle_pawn->getVehiclePawnWrapper();
-            vehicle_pawn->initializeForBeginPlay(getSettings().enable_rpc, 
-                getSettings().api_server_address, getSettings().engine_sound, getRemoteControlID(*wrapper));
+		for (AActor* pawn : pawns)
+		{
+			
+			//initialize each vehicle pawn we found
+			TVehiclePawn* vehicle_pawn = static_cast<TVehiclePawn*>(pawn);
+			VehiclePtr p = static_cast<VehiclePtr>(vehicle_pawn);
+			p->AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+			
+			vehicles.push_back(vehicle_pawn);
 
-            if (getSettings().enable_collision_passthrough)
-                wrapper->getConfig().enable_passthrough_on_collisions = true;
-            if (wrapper->getConfig().is_fpv_vehicle || fpv_vehicle_pawn_wrapper_ == nullptr)
-                fpv_vehicle_pawn_wrapper_ = wrapper;
-        }
-    }
+			VehiclePawnWrapper* wrapper = vehicle_pawn->getVehiclePawnWrapper();
+			std::string vehicle_name = "";
+			
+			FName* fname = vehicle_pawn->Tags.GetData();
+			if (fname != nullptr) {
+				FString name = fname->GetPlainNameString();
+				vehicle_name = TCHAR_TO_UTF8(*name);
+			}
+			vehicle_pawn->initializeForBeginPlay(getSettings().enable_rpc, getSettings().api_server_address, getVehicleApiServerPortByActor(vehicle_name), getSettings().engine_sound, getRemoteControlID(*wrapper));
+
+			if (getSettings().enable_collision_passthrough)
+				wrapper->getConfig().enable_passthrough_on_collisions = true;
+			//chose first pawn as FPV if none is designated as FPV
+			if (wrapper->getConfig().is_fpv_vehicle || fpv_vehicle_pawn_wrapper_ == nullptr)
+				fpv_vehicle_pawn_wrapper_ = wrapper;
+		}
+	}
+
 
     CameraDirector->initializeForBeginPlay(getInitialViewMode(), fpv_vehicle_pawn_wrapper_, external_camera);
 }
+
+int ASimModeCar::getVehicleApiServerPortByActor(const std::string vehicle_name) {
+	typedef msr::airlib::AirSimSettings AirSimSettings;
+
+	//load specific api server port by the vehicles's name
+	return AirSimSettings::singleton().getVehicleSettings(vehicle_name).server_port;
+}
+
+
 
 std::string ASimModeCar::getVehicleName(const VehiclePawnWrapper& pawn)
 {
